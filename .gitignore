@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+*.log
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.tsbuildinfo
+frontend/node_modules/.tmp/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Kiro
+.kiro/
+
+# Test artifacts / mock files
+mock_cams_statement.pdf
+
+# Env files
+.env
+.env.local
+.env.*.local
