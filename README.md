@@ -1,4 +1,4 @@
-# NiveshNetra 📊
+# NiveshNetra
 
 A full-stack mutual fund portfolio analyser. Upload your CAMS Consolidated Account Statement PDF and instantly get XIRR, absolute returns, allocation breakdown, and fund-level analytics — all computed locally, nothing leaves your machine.
 
