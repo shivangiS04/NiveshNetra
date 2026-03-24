@@ -1,65 +1,31 @@
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { FundResult } from '../types'
 
-interface Props {
-  funds: FundResult[]
-}
+interface Props { funds: FundResult[]; dark?: boolean }
 
-/**
- * Builds a simple two-point growth chart:
- * Point 1 = total invested (start)
- * Point 2 = current value (now)
- *
- * For a richer chart with real transaction history, the backend would need
- * to return time-series data. This gives a clean visual for the hackathon.
- */
 export function InvestmentGrowthChart({ funds }: Props) {
-  const totalInvested = funds.reduce((s, f) => s + f.totalInvested, 0)
-  const totalCurrent = funds.reduce((s, f) => s + f.currentValue, 0)
-
+  const inv = funds.reduce((s, f) => s + f.totalInvested, 0)
+  const cur = funds.reduce((s, f) => s + f.currentValue, 0)
   const data = [
-    { label: 'Invested', invested: Math.round(totalInvested), current: Math.round(totalInvested) },
-    { label: 'Now', invested: Math.round(totalInvested), current: Math.round(totalCurrent) },
+    { label: 'Invested', invested: Math.round(inv), current: Math.round(inv) },
+    { label: 'Now',      invested: Math.round(inv), current: Math.round(cur) },
   ]
-
-  const formatINR = (v: number) => `₹${(v / 1000).toFixed(0)}K`
+  const fmt = (v: number) => `₹${(v / 1000).toFixed(0)}K`
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-      <h3 className="text-base font-semibold text-gray-700 mb-4">Investment Growth</h3>
-      <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6b7280' }} />
-          <YAxis tickFormatter={formatINR} tick={{ fontSize: 11, fill: '#6b7280' }} />
-          <Tooltip formatter={(v: number) => `₹${v.toLocaleString('en-IN')}`} />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey="invested"
-            name="Total Invested"
-            stroke="#a78bfa"
-            strokeWidth={2}
-            dot={{ r: 5 }}
-            strokeDasharray="5 5"
-          />
-          <Line
-            type="monotone"
-            dataKey="current"
-            name="Current Value"
-            stroke="#6366f1"
-            strokeWidth={3}
-            dot={{ r: 6 }}
-          />
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">Investment Growth</p>
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+          <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+          <YAxis tickFormatter={fmt} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={40} />
+          <Tooltip formatter={(v: number) => `₹${Math.round(v).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+            contentStyle={{ fontSize: 12, borderRadius: 6, border: '1px solid #e5e7eb' }} />
+          <Line type="monotone" dataKey="invested" name="Invested" stroke="#d1d5db"
+            strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4, fill: '#d1d5db' }} />
+          <Line type="monotone" dataKey="current" name="Current Value" stroke="#6366f1"
+            strokeWidth={2.5} dot={{ r: 5, fill: '#6366f1' }} />
         </LineChart>
       </ResponsiveContainer>
     </div>

@@ -2,9 +2,11 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
 .venv/
 venv/
 env/
+ENV/
 *.egg-info/
 dist/
 build/
@@ -12,7 +14,11 @@ build/
 .hypothesis/
 htmlcov/
 .coverage
+.coverage.*
+coverage.xml
 *.log
+*.pot
+*.mo
 
 # Node / Frontend
 frontend/node_modules/
@@ -24,18 +30,35 @@ frontend/node_modules/.tmp/
 # macOS
 .DS_Store
 **/.DS_Store
+.AppleDouble
+.LSOverride
 
 # IDE
 .vscode/settings.json
+.vscode/launch.json
 .idea/
+*.swp
+*.swo
+*~
 
 # Kiro
 .kiro/
 
-# Test artifacts / mock files
+# Generated PDF test files
 mock_cams_statement.pdf
+mock_kfintech_statement.pdf
+mock_cams_statement_2.pdf
+mock_kfintech_statement_2.pdf
+*.pdf
 
-# Env files
+# Env / secrets
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini

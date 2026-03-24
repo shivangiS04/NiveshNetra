@@ -1,21 +1,20 @@
 """
-Generates a realistic mock CAMS Consolidated Account Statement PDF
-for testing NiveshNetra without a real mutual fund account.
+Generates a realistic mock CAS PDF for testing NiveshNetra.
 
 Usage:
-    python generate_mock_statement.py
-    # Creates: mock_cams_statement.pdf
+    python generate_mock_statement.py                    # CAMS format
+    python generate_mock_statement.py --format kfintech  # KFintech format
+    python generate_mock_statement.py --format cams      # CAMS format (explicit)
 """
 
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.units import mm
-from reportlab.lib import colors
-from reportlab.platypus import Table, TableStyle
+import argparse
 import os
 
-OUTPUT = "mock_cams_statement.pdf"
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 FUNDS = [
     {
@@ -118,19 +117,16 @@ FUNDS = [
 ]
 
 
-def build_pdf():
+def build_cams_pdf(output: str) -> None:
     doc = SimpleDocTemplate(
-        OUTPUT,
+        output,
         pagesize=A4,
-        rightMargin=15*mm,
-        leftMargin=15*mm,
-        topMargin=15*mm,
-        bottomMargin=15*mm,
+        rightMargin=15*mm, leftMargin=15*mm,
+        topMargin=15*mm, bottomMargin=15*mm,
     )
     styles = getSampleStyleSheet()
     story = []
 
-    # Header
     story.append(Paragraph("<b>CAMS - Computer Age Management Services</b>", styles["Title"]))
     story.append(Paragraph("Consolidated Account Statement", styles["Heading2"]))
     story.append(Paragraph("Period: 01-Jan-2020 To 15-Mar-2026", styles["Normal"]))
@@ -138,57 +134,87 @@ def build_pdf():
     story.append(Spacer(1, 8*mm))
 
     for fund in FUNDS:
-        # Fund name
         story.append(Paragraph(f"<b>{fund['name']}</b>", styles["Heading3"]))
-        story.append(Paragraph(
-            f"Folio No: {fund['folio']} / ISIN: {fund['isin']}",
-            styles["Normal"]
-        ))
+        story.append(Paragraph(f"Folio No: {fund['folio']} / ISIN: {fund['isin']}", styles["Normal"]))
         story.append(Spacer(1, 3*mm))
-
-        # Transaction table
-        headers = ["Date", "Description", "Amount (₹)", "Units", "NAV (₹)", "Balance Units"]
-        rows = [headers]
-        for txn in fund["transactions"]:
-            rows.append(list(txn))
-
-        t = Table(rows, colWidths=[25*mm, 55*mm, 25*mm, 22*mm, 22*mm, 28*mm])
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4f46e5")),
-            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
-            ("FONTSIZE",   (0, 0), (-1, 0), 8),
-            ("FONTSIZE",   (0, 1), (-1, -1), 7),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f3ff")]),
-            ("GRID",       (0, 0), (-1, -1), 0.3, colors.HexColor("#e5e7eb")),
-            ("ALIGN",      (2, 0), (-1, -1), "RIGHT"),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ]))
-        story.append(t)
-        story.append(Spacer(1, 3*mm))
-
-        # Closing balance and NAV
-        story.append(Paragraph(
-            f"Closing Unit Balance: {fund['closing_units']}",
-            styles["Normal"]
-        ))
-        story.append(Paragraph(
-            f"NAV on {fund['nav_date']}: INR {fund['current_nav']}",
-            styles["Normal"]
-        ))
+        _add_txn_table(story, fund)
+        story.append(Paragraph(f"Closing Unit Balance: {fund['closing_units']}", styles["Normal"]))
+        story.append(Paragraph(f"NAV on {fund['nav_date']}: INR {fund['current_nav']}", styles["Normal"]))
         story.append(Spacer(1, 8*mm))
 
     doc.build(story)
-    print(f"✅ Created: {OUTPUT}")
-    size_kb = os.path.getsize(OUTPUT) // 1024
-    print(f"   Size: {size_kb} KB")
-    print(f"\nNow upload '{OUTPUT}' to NiveshNetra at http://localhost:5173")
+
+
+def build_kfintech_pdf(output: str) -> None:
+    doc = SimpleDocTemplate(
+        output,
+        pagesize=A4,
+        rightMargin=15*mm, leftMargin=15*mm,
+        topMargin=15*mm, bottomMargin=15*mm,
+    )
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("<b>KFin Technologies Private Limited</b>", styles["Title"]))
+    story.append(Paragraph("Consolidated Account Statement", styles["Heading2"]))
+    story.append(Paragraph("Period: 01-Jan-2020 To 15-Mar-2026", styles["Normal"]))
+    story.append(Paragraph("Investor: Shivangi Singh | PAN: ABCPS1234Z", styles["Normal"]))
+    story.append(Spacer(1, 8*mm))
+
+    for fund in FUNDS:
+        # KFintech: Folio No BEFORE fund name
+        story.append(Paragraph(f"Folio No: {fund['folio'].split('/')[0].strip()}", styles["Normal"]))
+        story.append(Paragraph(f"<b>{fund['name']}</b>", styles["Heading3"]))
+        story.append(Paragraph(f"ISIN: {fund['isin']}", styles["Normal"]))
+        story.append(Spacer(1, 3*mm))
+        _add_txn_table(story, fund)
+        story.append(Paragraph(f"Closing Balance: {fund['closing_units']}", styles["Normal"]))
+        story.append(Paragraph(f"NAV as on {fund['nav_date']}: INR {fund['current_nav']}", styles["Normal"]))
+        story.append(Spacer(1, 8*mm))
+
+    doc.build(story)
+
+
+def _add_txn_table(story, fund):
+    headers = ["Date", "Description", "Amount (₹)", "Units", "NAV (₹)", "Balance Units"]
+    rows = [headers] + [list(txn) for txn in fund["transactions"]]
+    t = Table(rows, colWidths=[25*mm, 55*mm, 25*mm, 22*mm, 22*mm, 28*mm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#4f46e5")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 1), (-1, -1), 7),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f3ff")]),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#e5e7eb")),
+        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    story.append(t)
+    from reportlab.platypus import Spacer as _S
+    story.append(_S(1, 3*mm))
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Generate mock CAS PDF for NiveshNetra")
+    parser.add_argument("--format", choices=["cams", "kfintech"], default="cams",
+                        help="Statement format to generate (default: cams)")
+    args = parser.parse_args()
+
     try:
-        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.pagesizes import A4  # noqa: F401
     except ImportError:
         print("Installing reportlab...")
         os.system("pip install reportlab")
-    build_pdf()
+
+    if args.format == "kfintech":
+        output = "mock_kfintech_statement.pdf"
+        build_kfintech_pdf(output)
+    else:
+        output = "mock_cams_statement.pdf"
+        build_cams_pdf(output)
+
+    print(f"✅ Created: {output}")
+    size_kb = os.path.getsize(output) // 1024
+    print(f"   Size: {size_kb} KB")
+    print(f"\nNow upload '{output}' to NiveshNetra at http://localhost:5173")

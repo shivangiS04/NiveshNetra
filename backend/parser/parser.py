@@ -192,17 +192,17 @@ def _extract_folio(section_text: str) -> str:
 
 def parse_statement(pdf_bytes: bytes) -> list[FundHolding]:
     """
-    Parse a CAMS PDF statement and return structured holdings.
+    Parse a CAMS or KFintech PDF statement and return structured holdings.
+    Auto-detects the format from the first 3 pages.
 
     PRECONDITIONS:
       - pdf_bytes is non-empty
       - Bytes represent a valid PDF (starts with %PDF)
-      - PDF is a CAMS consolidated account statement
 
     POSTCONDITIONS:
       - Returns list of FundHolding with at least one entry
       - Each FundHolding.transactions is non-empty
-      - Raises ParseError if PDF is unreadable or not a CAMS statement
+      - Raises ParseError if PDF is unreadable or format not recognised
     """
     if not pdf_bytes:
         raise ParseError("Empty file provided")
@@ -212,6 +212,10 @@ def parse_statement(pdf_bytes: bytes) -> list[FundHolding]:
 
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            # Read first 3 pages for detection
+            header_text = "\n".join(
+                page.extract_text() or "" for page in pdf.pages[:3]
+            )
             full_text = "\n".join(
                 page.extract_text() or "" for page in pdf.pages
             )
@@ -221,6 +225,16 @@ def parse_statement(pdf_bytes: bytes) -> list[FundHolding]:
     if not full_text.strip():
         raise ParseError("PDF contains no extractable text")
 
+    # Auto-detect format
+    is_kfintech = bool(
+        re.search(r"KFin\s+Technologies|Karvy\s+Computershare", header_text, re.IGNORECASE)
+    )
+
+    if is_kfintech:
+        from backend.parser.kfintech_parser import parse_kfintech_statement
+        return parse_kfintech_statement(full_text)
+
+    # Default: CAMS
     sections = detect_fund_sections(full_text)
     if not sections:
         raise ParseError("PDF does not appear to be a CAMS statement — no fund sections found")
@@ -229,7 +243,7 @@ def parse_statement(pdf_bytes: bytes) -> list[FundHolding]:
     for fund_name, section_text in sections:
         transactions = extract_transactions(section_text)
         if not transactions:
-            continue  # skip sections with no parseable transactions
+            continue
 
         holding = FundHolding(
             fund_name=fund_name or "Unknown Fund",

@@ -11,10 +11,12 @@ from typing import Optional
 import scipy.optimize
 
 from backend.exceptions import XIRRError
+from backend.fund_data import compute_overlap, find_fund_meta
 from backend.models import (
     CashFlow,
     FundHolding,
     FundResult,
+    OverlapResult,
     PortfolioResult,
     TransactionType,
 )
@@ -120,20 +122,11 @@ def compute_xirr(cash_flows: list[CashFlow]) -> float:
 def compute_portfolio_xirr(holdings: list[FundHolding]) -> PortfolioResult:
     """
     Compute per-fund XIRR and aggregate portfolio XIRR.
-
-    PRECONDITIONS:
-      - holdings is non-empty
-      - Each holding has current_nav >= 0
-      - Each holding has at least one purchase transaction
-
-    POSTCONDITIONS:
-      - result.portfolio_xirr is computed from merged cash flows of all holdings
-      - result.total_invested == sum(h.total_invested for h in holdings)
-      - result.total_current_value == sum(h.current_value for h in holdings)
-      - Per-fund XIRR failures are captured as xirr=None (not fatal)
+    Also enriches results with fund metadata (category, benchmark, expense ratio, overlap).
     """
     fund_results: list[FundResult] = []
     all_cash_flows: list[CashFlow] = []
+    holdings_meta = []
 
     for holding in holdings:
         flows = build_cash_flows(holding)
@@ -149,6 +142,12 @@ def compute_portfolio_xirr(holdings: list[FundHolding]) -> PortfolioResult:
         current = holding.current_value
         abs_return = (current - invested) / invested if invested > 0 else 0.0
 
+        # Enrich with fund metadata
+        meta = find_fund_meta(holding.fund_name, holding.isin)
+        expense_drag = (meta.expense_ratio * current) if meta else 0.0
+        if meta:
+            holdings_meta.append((holding.fund_name, meta))
+
         fund_results.append(FundResult(
             fund_name=holding.fund_name,
             folio_number=holding.folio_number,
@@ -156,11 +155,17 @@ def compute_portfolio_xirr(holdings: list[FundHolding]) -> PortfolioResult:
             current_value=current,
             xirr=xirr,
             absolute_return=abs_return,
+            category=meta.category if meta else "",
+            benchmark=meta.benchmark if meta else "",
+            benchmark_xirr=meta.benchmark_xirr_5y if meta else None,
+            expense_ratio=meta.expense_ratio if meta else None,
+            expense_drag_annual=expense_drag,
         ))
 
     total_invested = sum(h.total_invested for h in holdings)
     total_current = sum(h.current_value for h in holdings)
     abs_return = (total_current - total_invested) / total_invested if total_invested > 0 else 0.0
+    total_expense_drag = sum(f.expense_drag_annual for f in fund_results)
 
     portfolio_xirr: Optional[float] = None
     if all_cash_flows:
@@ -170,10 +175,24 @@ def compute_portfolio_xirr(holdings: list[FundHolding]) -> PortfolioResult:
         except XIRRError:
             pass
 
+    # Compute overlaps
+    raw_overlaps = compute_overlap(holdings_meta)
+    overlaps = [
+        OverlapResult(
+            fund_a=o["fundA"],
+            fund_b=o["fundB"],
+            shared_stocks=o["sharedStocks"],
+            overlap_pct=o["overlapPct"],
+        )
+        for o in raw_overlaps
+    ]
+
     return PortfolioResult(
         funds=fund_results,
         total_invested=total_invested,
         total_current_value=total_current,
         portfolio_xirr=portfolio_xirr,
         absolute_return=abs_return,
+        overlaps=overlaps,
+        total_expense_drag_annual=total_expense_drag,
     )

@@ -56,8 +56,21 @@ class FundResult:
     folio_number: str
     total_invested: float
     current_value: float
-    xirr: Optional[float]       # annualised decimal; None if unconverged
-    absolute_return: float      # (current_value - invested) / invested
+    xirr: Optional[float]           # annualised decimal; None if unconverged
+    absolute_return: float          # (current_value - invested) / invested
+    category: str = ""              # Large Cap, Flexi Cap, etc.
+    benchmark: str = ""             # Benchmark index name
+    benchmark_xirr: Optional[float] = None   # 5Y benchmark return
+    expense_ratio: Optional[float] = None    # Annual expense ratio
+    expense_drag_annual: float = 0.0         # ₹ lost to expense ratio per year
+
+
+@dataclass
+class OverlapResult:
+    fund_a: str
+    fund_b: str
+    shared_stocks: list[str]
+    overlap_pct: float
 
 
 @dataclass
@@ -67,3 +80,6 @@ class PortfolioResult:
     total_current_value: float
     portfolio_xirr: Optional[float]
     absolute_return: float
+    overlaps: list[OverlapResult] = field(default_factory=list)
+    total_expense_drag_annual: float = 0.0
+    rebalancing_plan: str = ""
