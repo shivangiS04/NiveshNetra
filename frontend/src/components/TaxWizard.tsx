@@ -146,43 +146,80 @@ export function TaxWizard({ dark, existingInvestments = [] }: Props) {
             <p style={{ fontSize: 12, color: muted, margin: 0 }}>Gross Income: {fmt(result.grossIncome)}</p>
           </div>
 
-          {/* Side-by-side regime cards */}
+          {/* Step-by-step side-by-side regime cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             {(['old', 'new'] as const).map(regime => {
               const r = regime === 'old' ? result.oldRegime : result.newRegime
               const isWinner = result.winner === regime
+
+              // Build traceable step list
+              type Step = { label: string; value: number; indent?: boolean; deduction?: boolean; note?: string }
+              const steps: Step[] = []
+
+              if (regime === 'old') {
+                steps.push({ label: 'Gross Income', value: result.grossIncome })
+                steps.push({ label: '− Standard Deduction (u/s 16)', value: r.standardDeduction, deduction: true })
+                if ((result.oldRegime.hraExemption ?? 0) > 0)
+                  steps.push({ label: '− HRA Exemption (u/s 10(13A))', value: result.oldRegime.hraExemption!, deduction: true, note: 'min(actual HRA, rent−10% basic, 50%/40% basic)' })
+                if ((result.oldRegime.deduction80C ?? 0) > 0)
+                  steps.push({ label: '− Section 80C (ELSS/PPF/LIC)', value: result.oldRegime.deduction80C!, deduction: true, note: 'max ₹1.5L' })
+                if ((result.oldRegime.deduction80D ?? 0) > 0)
+                  steps.push({ label: '− Section 80D (Health Insurance)', value: result.oldRegime.deduction80D!, deduction: true, note: 'max ₹25K' })
+                if ((result.oldRegime.deduction24B ?? 0) > 0)
+                  steps.push({ label: '− Section 24b (Home Loan Interest)', value: result.oldRegime.deduction24B!, deduction: true, note: 'max ₹2L' })
+                if ((result.oldRegime.deduction80CCD2 ?? 0) > 0)
+                  steps.push({ label: '− NPS Employer 80CCD(2)', value: result.oldRegime.deduction80CCD2!, deduction: true, note: 'no upper cap for employer contribution' })
+                steps.push({ label: '= Taxable Income', value: r.taxableIncome, note: 'after all deductions' })
+                steps.push({ label: 'Tax on Taxable Income', value: r.taxBeforeCess, note: 'slabs: 0–2.5L:0%, 2.5–5L:5%, 5–10L:20%, 10L+:30%' })
+                if (r.taxableIncome <= 500000)
+                  steps.push({ label: '− Rebate u/s 87A', value: r.taxBeforeCess, deduction: true, note: 'income ≤ ₹5L → zero tax' })
+                steps.push({ label: '+ Health & Education Cess (4%)', value: r.cess, note: 'on tax payable' })
+              } else {
+                steps.push({ label: 'Gross Income', value: result.grossIncome })
+                steps.push({ label: '− Standard Deduction', value: r.standardDeduction, deduction: true, note: '₹75,000 in new regime' })
+                steps.push({ label: '= Taxable Income', value: r.taxableIncome, note: 'only std deduction + 80CCD(2) allowed' })
+                steps.push({ label: 'Tax on Taxable Income', value: r.taxBeforeCess, note: '0–3L:0%, 3–7L:5%, 7–10L:10%, 10–12L:15%, 12–15L:20%, 15L+:30%' })
+                if (r.taxableIncome <= 700000)
+                  steps.push({ label: '− Rebate u/s 87A', value: r.taxBeforeCess, deduction: true, note: 'income ≤ ₹7L → zero tax' })
+                steps.push({ label: '+ Health & Education Cess (4%)', value: r.cess, note: 'on tax payable' })
+              }
+
               return (
                 <div key={regime} style={{
                   background: card, borderRadius: 12,
                   border: `2px solid ${isWinner ? '#16a34a' : border}`,
                   padding: 20,
                 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: isWinner ? '#16a34a' : text, margin: '0 0 12px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: isWinner ? '#16a34a' : text, margin: '0 0 14px' }}>
                     {regime === 'old' ? 'Old Regime' : 'New Regime'} {isWinner ? '✓ Better' : ''}
                   </p>
-                  <div style={{ fontSize: 12, color: muted }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span>Standard Deduction</span><span style={{ color: text }}>₹{r.standardDeduction.toLocaleString('en-IN')}</span>
-                    </div>
-                    {regime === 'old' && result.oldRegime.hraExemption !== undefined && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span>HRA Exemption</span><span style={{ color: text }}>{fmt(result.oldRegime.hraExemption)}</span>
+
+                  {/* Step-by-step calculation */}
+                  <div style={{ fontSize: 12 }}>
+                    {steps.map((step, i) => (
+                      <div key={i} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                        marginBottom: 6, paddingBottom: 6,
+                        borderBottom: i === steps.length - 1 ? 'none' : `1px dashed ${dark ? '#374151' : '#f3f4f6'}`,
+                      }}>
+                        <div style={{ flex: 1, paddingRight: 8 }}>
+                          <span style={{ color: step.deduction ? '#f87171' : step.label.startsWith('=') ? text : muted, fontWeight: step.label.startsWith('=') || step.label.startsWith('Tax') ? 600 : 400 }}>
+                            {step.label}
+                          </span>
+                          {step.note && (
+                            <p style={{ fontSize: 10, color: dark ? '#6b7280' : '#9ca3af', margin: '1px 0 0', fontStyle: 'italic' }}>{step.note}</p>
+                          )}
+                        </div>
+                        <span style={{ color: step.deduction ? '#f87171' : text, fontWeight: step.label.startsWith('=') ? 700 : 400, whiteSpace: 'nowrap' }}>
+                          {step.deduction ? '−' : ''}{fmt(step.value)}
+                        </span>
                       </div>
-                    )}
-                    {regime === 'old' && result.oldRegime.totalDeductions !== undefined && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span>Total Deductions</span><span style={{ color: text }}>{fmt(result.oldRegime.totalDeductions)}</span>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span>Taxable Income</span><span style={{ color: text }}>{fmt(r.taxableIncome)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span>Tax + Cess (4%)</span><span style={{ color: text }}>{fmt(r.taxBeforeCess)} + {fmt(r.cess)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${border}`, paddingTop: 8, marginTop: 8 }}>
-                      <span style={{ fontWeight: 600, color: text }}>Total Tax</span>
-                      <span style={{ fontWeight: 700, fontSize: 16, color: isWinner ? '#16a34a' : '#f87171' }}>{fmt(r.totalTax)}</span>
+                    ))}
+
+                    {/* Final total */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `2px solid ${isWinner ? '#16a34a' : border}`, paddingTop: 10, marginTop: 4 }}>
+                      <span style={{ fontWeight: 700, color: text, fontSize: 13 }}>Total Tax Payable</span>
+                      <span style={{ fontWeight: 700, fontSize: 18, color: isWinner ? '#16a34a' : '#f87171' }}>{fmt(r.totalTax)}</span>
                     </div>
                   </div>
                 </div>

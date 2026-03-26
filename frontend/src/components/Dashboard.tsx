@@ -103,6 +103,21 @@ export function Dashboard({ data, onReset, dark, onToggleDark }: Props) {
         <h1 style={{ fontSize: 24, fontWeight: 700, color: text, margin: '0 0 4px' }}>NiveshNetra</h1>
         <p style={{ fontSize: 13, color: muted, margin: '0 0 16px' }}>Portfolio X-Ray · ET Money Mentor</p>
 
+        {/* Disclaimer guardrail */}
+        <div style={{
+          background: dark ? '#1c1917' : '#fefce8',
+          border: `1px solid ${dark ? '#78350f' : '#fcd34d'}`,
+          borderRadius: 8, padding: '10px 16px', marginBottom: 20,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠</span>
+          <p style={{ fontSize: 12, color: dark ? '#fbbf24' : '#92400e', margin: 0, lineHeight: 1.5 }}>
+            <strong>Disclaimer:</strong> NiveshNetra provides AI-generated financial analysis for educational purposes only.
+            This is not licensed financial advice under SEBI regulations. All investment decisions should be made in
+            consultation with a SEBI-registered investment advisor. Past performance is not indicative of future returns.
+          </p>
+        </div>
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: `1px solid ${border}` }}>
           {([['portfolio', '📊 Portfolio'], ['fire', '🔥 FIRE Planner'], ['tax', '🧾 Tax Wizard']] as const).map(([tab, label]) => (

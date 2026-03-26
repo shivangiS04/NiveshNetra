@@ -46,9 +46,12 @@ Give a specific, actionable rebalancing plan in exactly 4-5 bullet points. Rules
 - Name specific funds to exit or reduce, with exact rupee amounts or SIP changes
 - Suggest specific Direct plan alternatives where relevant (e.g. "switch from Mirae Regular to Mirae Direct — saves ₹X/yr")
 - Quantify the benefit (fees saved, expected XIRR improvement)
+- IMPORTANT — Tax context: For any exit or switch recommendation, state whether the holding qualifies for LTCG (equity held >1 year: 12.5% tax above ₹1.25L gain; debt held >3 years: 20% with indexation) or STCG (equity <1 year: 20%; debt <3 years: slab rate). Recommend timing exits to minimise tax where possible.
 - End with ONE concrete action to take THIS month (specific fund, specific amount)
 - Use Indian number formatting (₹ symbol, lakhs)
-- Under 200 words total"""
+- Under 220 words total
+
+DISCLAIMER: This is AI-generated guidance, not licensed financial advice. Consult a SEBI-registered advisor before acting."""
 
 
 def _rule_based_plan(funds: list, overlaps: list, total_expense_drag: float) -> str:
@@ -63,7 +66,8 @@ def _rule_based_plan(funds: list, overlaps: list, total_expense_drag: float) -> 
         names = ", ".join(" ".join(f["fundName"].split()[:3]) for f in underperformers[:2])
         lines.append(
             f"- **Underperformers detected:** {names} are lagging their benchmark by >2%. "
-            "Consider switching to index funds for these categories."
+            "Consider switching to index funds for these categories. "
+            "Tax note: if held >1 year, equity gains above ₹1.25L are taxed at 12.5% LTCG — time the switch after the 1-year mark to avoid 20% STCG."
         )
 
     high_overlap = [o for o in overlaps if o.get("overlapPct", 0) >= 0.4]
@@ -79,7 +83,8 @@ def _rule_based_plan(funds: list, overlaps: list, total_expense_drag: float) -> 
         savings = round(total_expense_drag * 0.4)
         lines.append(
             f"- **Expense drag:** You're losing ₹{round(total_expense_drag):,}/year in fees. "
-            f"Switching to Direct plans could save ~₹{savings:,}/year."
+            f"Switching to Direct plans could save ~₹{savings:,}/year. "
+            "Direct plan switches are not a redemption — no capital gains tax is triggered on a Regular→Direct switch within the same fund house."
         )
 
     categories = {f.get("category", "") for f in funds}

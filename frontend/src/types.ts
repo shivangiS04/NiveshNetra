@@ -100,6 +100,7 @@ export interface TaxRegimeDetail {
   deduction80C?: number
   deduction80D?: number
   deduction24B?: number
+  deduction80CCD2?: number
   totalDeductions?: number
   taxableIncome: number
   taxBeforeCess: number

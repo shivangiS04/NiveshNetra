@@ -107,6 +107,7 @@ class FirePlanRequest(BaseModel):
     existingCorpus: float = 0.0
     monthlySip: float = 0.0
     riskAppetite: str = "moderate"  # "conservative" | "moderate" | "aggressive"
+    retirementAge: int = 60
 
 
 class TaxPlanRequest(BaseModel):
@@ -142,6 +143,7 @@ async def fire_plan(req: FirePlanRequest) -> dict:
         existing_corpus=req.existingCorpus,
         monthly_sip=req.monthlySip,
         risk_appetite=req.riskAppetite,
+        retirement_age=req.retirementAge,
     )
     plan["aiSummary"] = generate_fire_summary(plan)
     return plan

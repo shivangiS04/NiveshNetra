@@ -16,17 +16,25 @@ const RETURN_RATES: Record<string, number> = {
   aggressive: 0.14,
 }
 
-function projectCorpus(corpus: number, sip: number, rate: number, years: number): number {
+const INFLATION_RATE = 0.06
+const WITHDRAWAL_RATE = 0.04
+
+function projectCorpusMonthly(corpus: number, sip: number, rate: number, months: number): number {
   const r = rate / 12
   let c = corpus
-  for (let i = 0; i < years * 12; i++) c = c * (1 + r) + sip
+  for (let i = 0; i < months; i++) c = c * (1 + r) + sip
   return c
 }
 
 function buildChartData(
-  age: number, corpus: number, sip: number, rate: number,
-  targetCorpus: number, years: number,
+  age: number,
+  corpus: number,
+  sip: number,
+  rate: number,
+  targetCorpus: number,
+  retireAge: number,
 ): FireChartPoint[] {
+  const years = Math.max(0, retireAge - age)
   const r = rate / 12
   let c = corpus
   const data: FireChartPoint[] = []
@@ -39,6 +47,29 @@ function buildChartData(
     })
   }
   return data
+}
+
+function computeFireDate(corpus: number, sip: number, rate: number, target: number): string {
+  const r = rate / 12
+  let c = corpus
+  const today = new Date()
+  for (let m = 1; m <= 600; m++) {
+    c = c * (1 + r) + sip
+    if (c >= target) {
+      const d = new Date(today.getFullYear(), today.getMonth() + m, 1)
+      return d.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
+    }
+  }
+  return 'Beyond age 110'
+}
+
+function computeSipGap(corpus: number, rate: number, target: number, months: number): number {
+  if (months <= 0) return 0
+  const r = rate / 12
+  const fvExisting = corpus * Math.pow(1 + r, months)
+  const factor = r > 0 ? (Math.pow(1 + r, months) - 1) / r : months
+  const needed = (target - fvExisting) / factor
+  return Math.max(0, needed)
 }
 
 function fmt(n: number) {
@@ -61,10 +92,12 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
   const [corpus, setCorpus] = useState(prefillCorpus)
   const [sip, setSip] = useState(prefillSip || 10000)
   const [risk, setRisk] = useState<'conservative' | 'moderate' | 'aggressive'>('moderate')
+  const [retireAge, setRetireAge] = useState(60)
   const [result, setResult] = useState<FirePlanResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [whatIfSip, setWhatIfSip] = useState(0)
+  const [whatIfRetireAge, setWhatIfRetireAge] = useState(0)
 
   const inputStyle = {
     width: '100%', padding: '8px 10px', borderRadius: 6,
@@ -77,6 +110,7 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
     setLoading(true)
     setError('')
     setWhatIfSip(0)
+    setWhatIfRetireAge(0)
     try {
       const res = await fetch('/api/fire-plan', {
         method: 'POST',
@@ -84,6 +118,7 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
         body: JSON.stringify({
           age, monthlyIncome: income, monthlyExpenses: expenses,
           existingCorpus: corpus, monthlySip: sip, riskAppetite: risk,
+          retirementAge: retireAge,
         }),
       })
       if (!res.ok) throw new Error((await res.json()).detail || 'Request failed')
@@ -95,35 +130,38 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
     }
   }
 
-  // What-if: recompute chart data client-side with extra SIP
-  const whatIfChartData = useMemo(() => {
-    if (!result || whatIfSip === 0) return result?.chartData ?? []
-    const rate = RETURN_RATES[risk]
-    const years = result.yearsToRetirement
-    return buildChartData(age, corpus, sip + whatIfSip, rate, result.targetCorpus, years)
-  }, [result, whatIfSip, age, corpus, sip, risk])
+  // Live what-if: recompute everything client-side when sliders change
+  const effectiveRetireAge = whatIfRetireAge > 0 ? whatIfRetireAge : (result?.yearsToRetirement ? age + result.yearsToRetirement : retireAge)
+  const effectiveSip = sip + whatIfSip
+  const rate = RETURN_RATES[risk]
 
-  const whatIfFireDate = useMemo(() => {
-    if (!result || whatIfSip === 0) return result?.fireDate ?? ''
-    const rate = RETURN_RATES[risk]
-    const r = rate / 12
-    let c = corpus
-    const target = result.targetCorpus
-    const today = new Date()
-    for (let m = 1; m <= 600; m++) {
-      c = c * (1 + r) + (sip + whatIfSip)
-      if (c >= target) {
-        const d = new Date(today.getFullYear(), today.getMonth() + m, 1)
-        return d.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
-      }
-    }
-    return 'Beyond age 110'
-  }, [result, whatIfSip, corpus, sip, risk])
+  const whatIfData = useMemo(() => {
+    if (!result) return null
+    const yearsToRetire = Math.max(0, effectiveRetireAge - age)
+    const monthsToRetire = yearsToRetire * 12
+    const annualExpenses = expenses * 12
+    const inflatedExpenses = annualExpenses * Math.pow(1 + INFLATION_RATE, yearsToRetire)
+    const target = inflatedExpenses / WITHDRAWAL_RATE
+    const projected = projectCorpusMonthly(corpus, effectiveSip, rate, monthsToRetire)
+    const onTrack = projected >= target
+    const sipGap = computeSipGap(corpus, rate, target, monthsToRetire)
+    const additionalNeeded = Math.max(0, sipGap - effectiveSip)
+    const fireDate = computeFireDate(corpus, effectiveSip, rate, target)
+    const chartData = buildChartData(age, corpus, effectiveSip, rate, target, effectiveRetireAge)
+    const progressPct = Math.min(100, Math.round((projected / target) * 100))
+    return { target, projected, onTrack, additionalNeeded, fireDate, chartData, progressPct, yearsToRetire }
+  }, [result, effectiveRetireAge, effectiveSip, age, corpus, expenses, rate])
 
-  const chartData = whatIfSip > 0 ? whatIfChartData : (result?.chartData ?? [])
-  const progressPct = result
-    ? Math.min(100, Math.round((result.projectedCorpusAtRetirement / result.targetCorpus) * 100))
-    : 0
+  const displayData = whatIfData ?? {
+    target: result?.targetCorpus ?? 0,
+    projected: result?.projectedCorpusAtRetirement ?? 0,
+    onTrack: result?.onTrack ?? false,
+    additionalNeeded: result?.additionalSipNeeded ?? 0,
+    fireDate: result?.fireDate ?? '',
+    chartData: result?.chartData ?? [],
+    progressPct: result ? Math.min(100, Math.round((result.projectedCorpusAtRetirement / result.targetCorpus) * 100)) : 0,
+    yearsToRetire: result?.yearsToRetirement ?? 0,
+  }
 
   const riskBtns: Array<'conservative' | 'moderate' | 'aggressive'> = ['conservative', 'moderate', 'aggressive']
 
@@ -137,7 +175,7 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
             <label style={{ fontSize: 12, color: muted }}>
-              Age
+              Current Age
               <input type="number" min={18} max={59} value={age} onChange={e => setAge(+e.target.value)} style={inputStyle} />
             </label>
             <label style={{ fontSize: 12, color: muted }}>
@@ -155,6 +193,10 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
             <label style={{ fontSize: 12, color: muted }}>
               Monthly SIP (₹)
               <input type="number" min={0} value={sip} onChange={e => setSip(+e.target.value)} style={inputStyle} />
+            </label>
+            <label style={{ fontSize: 12, color: muted }}>
+              Target Retirement Age
+              <input type="number" min={age + 1} max={80} value={retireAge} onChange={e => setRetireAge(+e.target.value)} style={inputStyle} />
             </label>
           </div>
 
@@ -193,39 +235,42 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
         <>
           {/* Hero */}
           <div style={{
-            background: result.onTrack ? (dark ? '#052e16' : '#f0fdf4') : (dark ? '#1c1917' : '#fefce8'),
-            border: `1px solid ${result.onTrack ? '#16a34a' : '#ca8a04'}`,
+            background: displayData.onTrack ? (dark ? '#052e16' : '#f0fdf4') : (dark ? '#1c1917' : '#fefce8'),
+            border: `1px solid ${displayData.onTrack ? '#16a34a' : '#ca8a04'}`,
             borderRadius: 12, padding: '20px 24px', marginBottom: 16, textAlign: 'center',
           }}>
-            <p style={{ fontSize: 28, fontWeight: 700, color: result.onTrack ? '#16a34a' : '#ca8a04', margin: '0 0 4px' }}>
-              {whatIfSip > 0 ? `With +₹${whatIfSip.toLocaleString('en-IN')}/mo SIP: ${whatIfFireDate}` : `You can retire in ${result.fireDate}`}
+            <p style={{ fontSize: 26, fontWeight: 700, color: displayData.onTrack ? '#16a34a' : '#ca8a04', margin: '0 0 4px' }}>
+              {displayData.fireDate}
             </p>
             <p style={{ fontSize: 13, color: muted, margin: 0 }}>
-              {result.onTrack
-                ? `On track · ${result.yearsEarly} year(s) early`
-                : `${result.yearsToRetirement} years to retirement · additional SIP needed`}
+              {displayData.onTrack
+                ? `On track to retire at ${effectiveRetireAge}`
+                : `Retire at ${effectiveRetireAge} — additional SIP needed`}
+              {(whatIfSip > 0 || whatIfRetireAge > 0) && (
+                <span style={{ color: '#4f46e5', fontWeight: 600 }}> · What-if scenario active</span>
+              )}
             </p>
           </div>
 
-          {/* Progress bar + SIP gap */}
+          {/* Progress + SIP gap */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <div style={{ background: card, borderRadius: 12, border: `1px solid ${border}`, padding: 20 }}>
               <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>Target vs Projected Corpus</p>
               <p style={{ fontSize: 13, color: text, margin: '0 0 6px' }}>
-                {fmt(result.projectedCorpusAtRetirement)} of {fmt(result.targetCorpus)}
+                {fmt(displayData.projected)} of {fmt(displayData.target)}
               </p>
               <div style={{ background: subtle, borderRadius: 4, height: 10, overflow: 'hidden' }}>
-                <div style={{ width: `${progressPct}%`, height: '100%', background: progressPct >= 100 ? '#16a34a' : '#4f46e5', borderRadius: 4, transition: 'width 0.5s' }} />
+                <div style={{ width: `${displayData.progressPct}%`, height: '100%', background: displayData.progressPct >= 100 ? '#16a34a' : '#4f46e5', borderRadius: 4, transition: 'width 0.4s' }} />
               </div>
-              <p style={{ fontSize: 11, color: muted, margin: '4px 0 0' }}>{progressPct}% of target</p>
+              <p style={{ fontSize: 11, color: muted, margin: '4px 0 0' }}>{displayData.progressPct}% of target</p>
             </div>
 
             <div style={{ background: card, borderRadius: 12, border: `1px solid ${border}`, padding: 20 }}>
-              <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>SIP Gap to Retire at 60</p>
-              {result.additionalSipNeeded > 0 ? (
+              <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>SIP Gap to Retire at {effectiveRetireAge}</p>
+              {displayData.additionalNeeded > 0 ? (
                 <>
                   <p style={{ fontSize: 22, fontWeight: 700, color: '#f87171', margin: '0 0 4px' }}>
-                    +{fmt(result.additionalSipNeeded)}/mo
+                    +{fmt(displayData.additionalNeeded)}/mo
                   </p>
                   <p style={{ fontSize: 12, color: muted, margin: 0 }}>additional SIP needed to retire on time</p>
                 </>
@@ -239,7 +284,7 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
           <div style={{ background: card, borderRadius: 12, border: `1px solid ${border}`, padding: 20, marginBottom: 16 }}>
             <p style={{ fontSize: 12, color: muted, margin: '0 0 12px' }}>Corpus Growth Projection</p>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <LineChart data={displayData.chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={border} />
                 <XAxis dataKey="year" tick={{ fontSize: 11, fill: muted }} />
                 <YAxis tickFormatter={v => v >= 1e7 ? `${(v/1e7).toFixed(1)}Cr` : `${(v/1e5).toFixed(0)}L`} tick={{ fontSize: 10, fill: muted }} width={52} />
@@ -251,19 +296,50 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
             </ResponsiveContainer>
           </div>
 
-          {/* What-if slider */}
+          {/* What-if sliders */}
           <div style={{ background: card, borderRadius: 12, border: `1px solid ${border}`, padding: 20, marginBottom: 16 }}>
-            <p style={{ fontSize: 12, color: muted, margin: '0 0 8px' }}>What if? — Increase SIP by ₹{whatIfSip.toLocaleString('en-IN')}/month</p>
-            <input type="range" min={0} max={50000} step={500} value={whatIfSip}
-              onChange={e => setWhatIfSip(+e.target.value)}
-              style={{ width: '100%', accentColor: '#4f46e5' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: muted, marginTop: 4 }}>
-              <span>₹0</span><span>₹50,000</span>
-            </div>
-            {whatIfSip > 0 && (
-              <p style={{ fontSize: 13, color: '#4f46e5', fontWeight: 600, margin: '8px 0 0' }}>
-                New FIRE date: {whatIfFireDate}
+            <p style={{ fontSize: 12, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+              What-if Scenarios — updates live
+            </p>
+
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 12, color: muted, margin: '0 0 6px' }}>
+                Increase SIP by <span style={{ color: text, fontWeight: 600 }}>₹{whatIfSip.toLocaleString('en-IN')}/month</span>
               </p>
+              <input type="range" min={0} max={50000} step={500} value={whatIfSip}
+                onChange={e => setWhatIfSip(+e.target.value)}
+                style={{ width: '100%', accentColor: '#4f46e5' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: muted, marginTop: 2 }}>
+                <span>₹0</span><span>₹50,000</span>
+              </div>
+            </div>
+
+            <div>
+              <p style={{ fontSize: 12, color: muted, margin: '0 0 6px' }}>
+                Change retirement age to <span style={{ color: text, fontWeight: 600 }}>{whatIfRetireAge > 0 ? whatIfRetireAge : retireAge}</span>
+              </p>
+              <input type="range" min={age + 1} max={75} step={1}
+                value={whatIfRetireAge > 0 ? whatIfRetireAge : retireAge}
+                onChange={e => setWhatIfRetireAge(+e.target.value)}
+                style={{ width: '100%', accentColor: '#cc0000' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: muted, marginTop: 2 }}>
+                <span>Age {age + 1}</span><span>Age 75</span>
+              </div>
+            </div>
+
+            {(whatIfSip > 0 || whatIfRetireAge > 0) && (
+              <div style={{ marginTop: 12, padding: '10px 14px', background: dark ? '#1e1b4b' : '#eef2ff', borderRadius: 8 }}>
+                <p style={{ fontSize: 13, color: '#4f46e5', fontWeight: 600, margin: 0 }}>
+                  New FIRE date: {displayData.fireDate} · Corpus: {fmt(displayData.projected)} / {fmt(displayData.target)}
+                </p>
+              </div>
+            )}
+
+            {(whatIfSip > 0 || whatIfRetireAge > 0) && (
+              <button onClick={() => { setWhatIfSip(0); setWhatIfRetireAge(0) }}
+                style={{ marginTop: 10, fontSize: 11, color: muted, background: 'none', border: `1px solid ${border}`, borderRadius: 4, padding: '4px 10px', cursor: 'pointer' }}>
+                Reset what-if
+              </button>
             )}
           </div>
 

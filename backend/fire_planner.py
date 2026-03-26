@@ -13,7 +13,7 @@ RETURN_RATES = {
     "moderate": 0.12,
     "aggressive": 0.14,
 }
-RETIREMENT_AGE = 60
+DEFAULT_RETIREMENT_AGE = 60
 
 
 def _months_to_fire(
@@ -89,9 +89,10 @@ def compute_fire_plan(
     existing_corpus: float,
     monthly_sip: float,
     risk_appetite: str,
+    retirement_age: int = DEFAULT_RETIREMENT_AGE,
 ) -> dict:
     annual_return = RETURN_RATES.get(risk_appetite, 0.12)
-    years_to_retirement = max(0, RETIREMENT_AGE - age)
+    years_to_retirement = max(0, retirement_age - age)
     months_to_retirement = years_to_retirement * 12
 
     # Inflation-adjusted annual expenses at retirement
@@ -110,7 +111,7 @@ def compute_fire_plan(
         fire_month_num = (today.month - 1 + fire_month) % 12 + 1
         fire_date_str = date(fire_year, fire_month_num, 1).strftime("%B %Y")
         fire_age = age + fire_month // 12
-        years_early = max(0, RETIREMENT_AGE - fire_age)
+        years_early = max(0, retirement_age - fire_age)
         on_track = fire_month <= months_to_retirement
     else:
         fire_date_str = "Beyond age 110"
@@ -152,6 +153,7 @@ def compute_fire_plan(
 
     return {
         "age": age,
+        "retirementAge": retirement_age,
         "riskAppetite": risk_appetite,
         "annualReturn": annual_return,
         "yearsToRetirement": years_to_retirement,

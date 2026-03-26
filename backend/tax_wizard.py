@@ -191,6 +191,7 @@ def compute_tax_plan(
             "deduction80C": round(deduction_80c, 2),
             "deduction80D": round(deduction_80d, 2),
             "deduction24B": round(deduction_24b, 2),
+            "deduction80CCD2": round(deduction_80ccd2, 2),
             "totalDeductions": round(total_deductions_old, 2),
             "taxableIncome": round(taxable_old, 2),
             "taxBeforeCess": round(tax_old_base, 2),
