@@ -35,8 +35,8 @@ User (Browser)
 |CAMS/KFin |  |scipy     |  |Old/New   |  |Corpus    |
 |pdfplumber|  |Brent's   |  |regime    |  |projection|
 |auto-     |  |method    |  |HRA/80C   |  |SIP gap   |
-|detect    |  |Newton-   |  |87A rebate|  |4% rule   |
-|          |  |Raphson   |  |          |  |          |
+|detect    |  |(brentq)  |  |87A rebate|  |4% rule   |
+|          |  |          |  |          |  |          |
 +----------+  +----------+  +----------+  +----------+
      |              |
      v              v
@@ -127,7 +127,7 @@ Salary Inputs (basic, HRA, allowances, deductions)
     Step 2: HRA Exemption = min(actual HRA, rent−10%×basic, 50%/40%×basic)
     Step 3: Total Deductions = std(50K) + HRA + 80C(≤1.5L) + 80D(≤25K) + 24b(≤2L) + 80CCD(2)
     Step 4: Taxable Income = Gross − Total Deductions
-    Step 5: Tax = slabs (0/5/20/30%)
+    Step 5: Tax = slabs (0%: ≤2.5L / 5%: 2.5–5L / 20%: 5–10L / 30%: 10L+)
     Step 6: Rebate 87A if taxable ≤ 5L
     Step 7: Cess = tax × 4%
     |
@@ -136,7 +136,7 @@ Salary Inputs (basic, HRA, allowances, deductions)
     Step 1: Gross Income (same)
     Step 2: Deductions = std(75K) + 80CCD(2) only
     Step 3: Taxable Income = Gross − Deductions
-    Step 4: Tax = slabs (0/5/10/15/20/30%)
+    Step 4: Tax = slabs (0%: ≤3L / 5%: 3–7L / 10%: 7–10L / 15%: 10–12L / 20%: 12–15L / 30%: 15L+)
     Step 5: Rebate 87A if taxable ≤ 7L
     Step 6: Cess = tax × 4%
     |

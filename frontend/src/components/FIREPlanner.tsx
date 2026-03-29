@@ -302,17 +302,23 @@ export function FIREPlanner({ dark, prefillCorpus = 0, prefillSip = 0 }: Props) 
               What-if Scenarios — updates live
             </p>
 
-            <div style={{ marginBottom: 16 }}>
-              <p style={{ fontSize: 12, color: muted, margin: '0 0 6px' }}>
-                Increase SIP by <span style={{ color: text, fontWeight: 600 }}>₹{whatIfSip.toLocaleString('en-IN')}/month</span>
-              </p>
-              <input type="range" min={0} max={50000} step={500} value={whatIfSip}
-                onChange={e => setWhatIfSip(+e.target.value)}
-                style={{ width: '100%', accentColor: '#4f46e5' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: muted, marginTop: 2 }}>
-                <span>₹0</span><span>₹50,000</span>
-              </div>
-            </div>
+            {(() => {
+              const sipSliderMax = Math.max(100000, Math.ceil((result.additionalSipNeeded * 1.5) / 10000) * 10000)
+              const sipSliderStep = sipSliderMax > 100000 ? 1000 : 500
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: muted, margin: '0 0 6px' }}>
+                    Increase SIP by <span style={{ color: text, fontWeight: 600 }}>₹{whatIfSip.toLocaleString('en-IN')}/month</span>
+                  </p>
+                  <input type="range" min={0} max={sipSliderMax} step={sipSliderStep} value={whatIfSip}
+                    onChange={e => setWhatIfSip(+e.target.value)}
+                    style={{ width: '100%', accentColor: '#4f46e5' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: muted, marginTop: 2 }}>
+                    <span>₹0</span><span>₹{(sipSliderMax / 1000).toFixed(0)}K</span>
+                  </div>
+                </div>
+              )
+            })()}
 
             <div>
               <p style={{ fontSize: 12, color: muted, margin: '0 0 6px' }}>
