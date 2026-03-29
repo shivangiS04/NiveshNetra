@@ -6,7 +6,7 @@ Built for ET AI Hackathon 2026 — Problem Statement 9: AI Money Mentor (MF Port
 
 Upload a CAMS or KFintech Consolidated Account Statement PDF and get a full portfolio analysis in under 10 seconds: per-fund XIRR, benchmark comparison, expense drag, overlap detection, a 6-dimension Money Health Score, an AI-generated rebalancing plan with STCG/LTCG tax context, a FIRE retirement projection, a step-by-step tax regime comparison, and a downloadable 2-page PDF report.
 
-See ARCHITECTURE.md for the full agent diagram and data flow.
+See Architecture_Explanation.md for the full agent diagram and data flow.
 
 ---
 
